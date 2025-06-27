@@ -110,10 +110,6 @@ def login():
     
     return user_id, access_token
 
-import requests
-from bs4 import BeautifulSoup
-import json
-
 def get_court_mapping(url):
     """Holt Mapping von resource_id zu Platznamen aus __NEXT_DATA__ JSON."""
 
