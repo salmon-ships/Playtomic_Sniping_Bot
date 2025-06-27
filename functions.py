@@ -11,13 +11,6 @@ from email.mime.image import MIMEImage
 import os
 from pathlib import Path
 
-"""TO-DO:
-- Logging hinzufügen
-- Dynamische Pfade (für logo/config)
-- Fehlerbehandlung try/except
-- 
-"""
-
 url_mannheim = "https://playtomic.io/maba-padel-mannheim-gmbh/5bb4ad71-dbd9-499e-88fb-c9a5e7df6db6?q=PADEL~2024-10-03~~~"
 url_ubstadt = "https://playtomic.io/gartner-sportpark/e3acb6b7-c7c5-42c0-ae6f-99d546cabce6?q=PADEL~2025-01-22~~~"
 
@@ -117,46 +110,39 @@ def login():
     
     return user_id, access_token
 
-def get_court_mapping(url, tenant_id):
-    """_summary_
+import requests
+from bs4 import BeautifulSoup
+import json
 
-    Args:
-        url (_type_): URL der Buchungsseite des Playtomic-Clubs.
-        tenant_id (_type_): tenant_id des Playtomics-Clubs ()
+def get_court_mapping(url):
+    """Holt Mapping von resource_id zu Platznamen aus __NEXT_DATA__ JSON."""
 
-    Returns:
-        _type_: _description_
-    """
-    # URL der Seite mit den Platzverfügbarkeiten
-    # Anfrage an die Webseite senden
     response = requests.get(url)
     soup = BeautifulSoup(response.text, 'html.parser')
 
-    # Den JavaScript-Block finden, der window.__INITIAL_STATE__ enthält
-    script_tag = soup.find('script', string=re.compile('window.__INITIAL_STATE__'))
+    # Den Script-Tag mit __NEXT_DATA__ finden
+    script_tag = soup.find('script', {'id': '__NEXT_DATA__'})
 
-    # Extrahiere den Text des Scripts
-    script_content = script_tag.string
+    if not script_tag:
+        raise Exception("Kein __NEXT_DATA__ Script gefunden")
 
-    # Finde den JSON-ähnlichen Teil (den Inhalt nach `window.__INITIAL_STATE__ =`)
-    json_text = re.search(r'window\.__INITIAL_STATE__\s*=\s*({.*});', script_content).group(1)
+    data = json.loads(script_tag.string)
 
-    # Den JSON-ähnlichen String in ein Dictionary umwandeln
-    data = json.loads(json_text)
-
-    resources = data['anemone']['tenant'][tenant_id]['resources']
+    # Navigiere zur Ressourcenliste
+    resources = data['props']['pageProps']['tenant']['resources']
 
     platz_info = []
 
     for resource in resources:
         resource_id = resource.get('resource_id')
         name = resource.get('name')
-        platz_info.append({'resource_id': resource_id, 'name': name})
+        if resource.get('sport_id') == 'PADEL':  # Nur Padel-Plätze
+            platz_info.append({'resource_id': resource_id, 'name': name})
 
-    # Ausgabe der resource_id und Namen
+    # Optional: Ausgabe
     for platz in platz_info:
         print(f"Resource ID: {platz['resource_id']}, Name: {platz['name']}")
-    
+
     return platz_info
 
 def prioritize_courts():
@@ -190,7 +176,10 @@ def create_url_for_availability_check(date, user_id, access_token, tenant_id):
     start_day_str = start_day.strftime("%Y-%m-%dT%H:%M:%S").replace(":", "%3A")
     end_day_str = end_day.strftime("%Y-%m-%dT%H:%M:%S").replace(":", "%3A")
     
-    url_availabilty = f"https://playtomic.io/api/v1/availability?user_id={user_id}&tenant_id={tenant_id}&sport_id=PADEL&local_start_min={start_day_str}&local_start_max={end_day_str}"
+    # This URL is outdated. A Login is not necessary anymore. 
+    # url_availabilty = f"https://playtomic.io/api/v1/availability?user_id={user_id}&tenant_id={tenant_id}&sport_id=PADEL&local_start_min={start_day_str}&local_start_max={end_day_str}"
+    url_availabilty = f"https://playtomic.com/api/clubs/availability?tenant_id={tenant_id}&date={start_day_str}&sport_id=PADEL"
+    
     return url_availabilty
 
 def create_urls_for_availability_check(tenant_id):
@@ -212,7 +201,6 @@ def create_urls_for_availability_check(tenant_id):
         current_day = start_date + timedelta(days=i)
         url = create_url_for_availability_check(current_day, user_id, access_token, tenant_id)
         url_list.append(url)
-    #print(url_list)
     return url_list, access_token
 
 def fetch_and_store_data(urls, access_token):
@@ -364,7 +352,7 @@ def search_for_free_padel_slots(start_time, court_names, days, min_duration, url
         DataFrame: Enthält alle freien Zeiten, die den Filterkriterien entsprechen. 
     """
     # Erstelle Mapping DataFrame resource_id -> Court-Name
-    platz_info = get_court_mapping(url, tenant_id)
+    platz_info = get_court_mapping(url)
     df_platz_info = pd.DataFrame(platz_info)
 
     # Erstelle URLs für den Abruf der Verfügbarkeiten
@@ -377,7 +365,7 @@ def search_for_free_padel_slots(start_time, court_names, days, min_duration, url
     data_df = pd.DataFrame(data_extracted)
 
     # Ersetze resource_id -> Court-Name
-    df_merged = transform_dataframe(df_platz_info, data_df, hours=1)
+    df_merged = transform_dataframe(df_platz_info, data_df, hours=0)
     filtered_df = filter_dataframe(df_merged, start_time, court_names, min_duration, days)
 
     return filtered_df
