@@ -31,8 +31,7 @@ jobs:
           PLAYTOMIC_USERNAME: ${{ secrets.PLAYTOMIC_USERNAME }}
           PLAYTOMIC_PASSWORD: ${{ secrets.PLAYTOMIC_PASSWORD }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_IDS_MANNHEIM: ${{ secrets.CHAT_IDS_MANNHEIM }}
-          CHAT_IDS_UBSTADT: ${{ secrets.CHAT_IDS_UBSTADT }}
+          CHAT_IDS: ${{ secrets.CHAT_IDS }}
         run: python main.py
 
       # Pushe aktualisierte Slots ins Repo  

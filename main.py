@@ -7,14 +7,12 @@ import json
 script_dir = Path(__file__).parent
 # Prüfen, ob wir in GitHub Actions oder lokal laufen
 if os.getenv("GITHUB_ACTIONS"):
-    # Komma-getrennte Chat-IDs aus Umgebungsvariablen (für GitHub Actions)
-    chat_ids_mannheim = [c.strip() for c in os.getenv('CHAT_IDS_MANNHEIM', '').split(',') if c.strip()]
-    chat_ids_ubstadt = [c.strip() for c in os.getenv('CHAT_IDS_UBSTADT', '').split(',') if c.strip()]
+    # Komma-getrennte Chat-IDs aus Umgebungsvariable (für GitHub Actions)
+    chat_ids = [c.strip() for c in os.getenv('CHAT_IDS', '').split(',') if c.strip()]
 else:
     # Lokaler Pfad
     config = load_config()
-    chat_ids_mannheim = config["chat_ids_mannheim"]
-    chat_ids_ubstadt = config["chat_ids_ubstadt"]
+    chat_ids = config["chat_ids"]
 
 storage_file_path_mannheim = script_dir / "freie_plaetze_mannheim.csv"
 storage_file_path_ubstadt = script_dir / "freie_plaetze_ubstadt.csv"
@@ -70,7 +68,7 @@ if __name__ == "__main__":
         send_telegram(
             diff_df_mannheim,
             subject="Padel-Tennisplatz in Mannheim gefunden!",
-            chat_ids=chat_ids_mannheim,
+            chat_ids=chat_ids,
             location="Mannheim"
         )
     else:
@@ -105,7 +103,7 @@ if __name__ == "__main__":
         send_telegram(
             diff_df,
             subject="Padel-Tennisplatz in Ubstadt gefunden!",
-            chat_ids=chat_ids_ubstadt,
+            chat_ids=chat_ids,
             location="Ubstadt"
         )
     else:

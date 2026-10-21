@@ -2,6 +2,5 @@
     "username_playtomic": "your-playtomic-email@example.com",
     "password_playtomic": "",
     "telegram_bot_token": "",
-    "chat_ids_mannheim": [],
-    "chat_ids_ubstadt": []
+    "chat_ids": []
 }
