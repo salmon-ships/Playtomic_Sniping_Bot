@@ -1,6 +1,7 @@
 """Pflegt subscribers.enc anhand der Telegram-Befehle /subscribe, /unsubscribe, /stop und /start."""
 import json
 import os
+import sys
 from pathlib import Path
 
 import requests
@@ -30,6 +31,17 @@ def save_subscribers(data, path=SUBSCRIBERS_FILE):
     path.write_bytes(_fernet().encrypt(json.dumps(data).encode()))
 
 
+def describe_error(e):
+    # Ohne URL ausgeben, da diese das Bot-Token enthält
+    if e.response is None:
+        return type(e).__name__
+    try:
+        description = e.response.json().get("description", "")
+    except ValueError:
+        description = ""
+    return f"HTTP {e.response.status_code} {description}".strip()
+
+
 def reply(token, chat_id, text):
     try:
         requests.post(
@@ -38,8 +50,7 @@ def reply(token, chat_id, text):
             timeout=10,
         ).raise_for_status()
     except requests.RequestException as e:
-        # Ohne URL ausgeben, da diese das Bot-Token enthält
-        print(f"Fehler beim Senden der Antwort an {chat_id}: {type(e).__name__}")
+        print(f"Fehler beim Senden der Antwort an {chat_id}: {describe_error(e)}")
 
 
 def status_text(cities, subscribed):
@@ -99,10 +110,12 @@ def main():
         )
         response.raise_for_status()
     except requests.RequestException as e:
-        print(f"Fehler beim Abrufen der Telegram-Updates: {type(e).__name__}")
-        return
+        print(f"Fehler beim Abrufen der Telegram-Updates: {describe_error(e)}")
+        sys.exit(1)
 
-    for update in response.json().get("result", []):
+    updates = response.json().get("result", [])
+    print(f"{len(updates)} neue Telegram-Updates abgerufen.")
+    for update in updates:
         data["last_update_id"] = max(data["last_update_id"], update["update_id"])
         message = update.get("message", {})
         text = (message.get("text") or "").strip()
