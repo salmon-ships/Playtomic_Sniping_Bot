@@ -8,9 +8,6 @@ import html
 import os
 from pathlib import Path
 
-url_mannheim = "https://playtomic.io/maba-padel-mannheim-gmbh/5bb4ad71-dbd9-499e-88fb-c9a5e7df6db6?q=PADEL~2024-10-03~~~"
-url_ubstadt = "https://playtomic.io/gartner-sportpark/e3acb6b7-c7c5-42c0-ae6f-99d546cabce6?q=PADEL~2025-01-22~~~"
-
 script_dir = Path(__file__).parent
 
 TELEGRAM_MAX_MESSAGE_LENGTH = 4096
@@ -31,9 +28,6 @@ def get_tenant_id(url):
         return tenant_id
     else:
         print("Keine Tenant-ID gefunden.")
-
-tenant_id_mannheim = get_tenant_id(url_mannheim)
-tenant_id_ubstadt = get_tenant_id(url_ubstadt)
 
 def get_login_playtomic():
     """Lädt Login-Daten für Playtomic aus config-JSON.

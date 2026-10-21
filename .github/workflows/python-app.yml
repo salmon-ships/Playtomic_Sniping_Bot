@@ -6,6 +6,8 @@ on:
 jobs:
   run-script:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       # 1. Repository klonen
@@ -24,23 +26,31 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 4. Skript ausführen mit Secrets
+      # 4. Abonnenten per Telegram (/subscribe, /unsubscribe, /stop) aktualisieren
+      - name: Update subscribers
+        env:
+          MODE: cloud
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          SUBSCRIBERS_KEY: ${{ secrets.SUBSCRIBERS_KEY }}
+        run: python update_subscribers.py
+
+      # 5. Skript ausführen mit Secrets
       - name: Run Python script
         env:
           MODE: cloud
           PLAYTOMIC_USERNAME: ${{ secrets.PLAYTOMIC_USERNAME }}
           PLAYTOMIC_PASSWORD: ${{ secrets.PLAYTOMIC_PASSWORD }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_IDS: ${{ secrets.CHAT_IDS }}
+          SUBSCRIBERS_KEY: ${{ secrets.SUBSCRIBERS_KEY }}
         run: python main.py
 
-      # Pushe aktualisierte Slots ins Repo  
+      # Pushe aktualisierte Slots und Abonnenten ins Repo
       - name: Commit and Push changes
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add freie_plaetze_mannheim.csv freie_plaetze_ubstadt.csv
-          git commit -m "Update freie_plaetze_mannheim.csv and freie_plaetze_ubstadt.csv via script"
+          git add 'freie_plaetze_*.csv' subscribers.enc
+          git diff --staged --quiet || git commit -m "Update slots and subscribers via script"
           git push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
