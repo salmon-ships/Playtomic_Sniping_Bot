@@ -2,6 +2,12 @@ name: Run Padel Script
 
 on:
   workflow_dispatch: # Manuelles Auslösen des Workflows
+  schedule:
+    - cron: "*/5 * * * *" # GitHub erlaubt höchstens alle 5 Minuten
+
+concurrency:
+  group: padel-check
+  cancel-in-progress: false
 
 jobs:
   run-script:
@@ -10,9 +16,11 @@ jobs:
       contents: write
 
     steps:
-      # 1. Repository klonen
+      # 1. Branch prod klonen (Code und Laufzeitdaten liegen dort; Schedule nutzt die Workflow-Datei vom Default-Branch)
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: prod
 
       # 2. Setup von Python
       - name: Set up Python 3.10.6
@@ -26,15 +34,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 4. Abonnenten per Telegram (/subscribe, /unsubscribe, /stop) aktualisieren
-      - name: Update subscribers
-        env:
-          MODE: cloud
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          SUBSCRIBERS_KEY: ${{ secrets.SUBSCRIBERS_KEY }}
-        run: python update_subscribers.py
-
-      # 5. Skript ausführen mit Secrets
+      # 4. Skript ausführen mit Secrets
       - name: Run Python script
         env:
           MODE: cloud
@@ -44,13 +44,12 @@ jobs:
           SUBSCRIBERS_KEY: ${{ secrets.SUBSCRIBERS_KEY }}
         run: python main.py
 
-      # Pushe aktualisierte Slots und Abonnenten ins Repo
+      # Pushe aktualisierte Slots ins Repo
       - name: Commit and Push changes
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add 'freie_plaetze_*.csv' subscribers.enc
-          git diff --staged --quiet || git commit -m "Update slots and subscribers via script"
+          git add 'freie_plaetze_*.csv'
+          git diff --staged --quiet || git commit -m "Update free slots via script"
+          git pull --rebase
           git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
