@@ -1,7 +1,5 @@
 # Playtomic-Sniping-Bot
 
-![Padelbot](logo.jpg)
-
 This bot detects available time slots on Playtomic and notifies the user via Telegram when matching slots are found. You can configure filter criteria to search for specific times, durations, and preferred courts. The bot can be run either locally or through GitHub Actions.
 
 Important considerations for usage:
