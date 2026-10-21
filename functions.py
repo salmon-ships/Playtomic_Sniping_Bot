@@ -99,28 +99,25 @@ def login():
     return user_id, access_token
 
 def get_court_mapping(url):
-    """Holt Mapping von resource_id zu Platznamen aus __NEXT_DATA__ JSON."""
+    """Holt Mapping von resource_id zu Platznamen aus den Next.js-Seitendaten der Club-Seite."""
 
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
+    response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
+    response.raise_for_status()
 
-    # Den Script-Tag mit __NEXT_DATA__ finden
-    script_tag = soup.find('script', {'id': '__NEXT_DATA__'})
+    # Die Ressourcen stehen als JSON-Objekte im (escapten) Next.js-Flight-Payload der Seite
+    page = response.text.replace('\\"', '"')
+    pattern = r'\{"resourceId":"([0-9a-f-]{36})","name":"([^"]*)","sport":"([^"]*)"'
+    resources = re.findall(pattern, page)
 
-    if not script_tag:
-        raise Exception("Kein __NEXT_DATA__ Script gefunden")
-
-    data = json.loads(script_tag.string)
-
-    # Navigiere zur Ressourcenliste
-    resources = data['props']['pageProps']['tenant']['resources']
+    if not resources:
+        raise Exception(f"Keine Court-Ressourcen auf der Seite gefunden (HTTP {response.status_code}, {len(response.text)} Zeichen)")
 
     platz_info = []
+    seen = set()
 
-    for resource in resources:
-        resource_id = resource.get('resource_id')
-        name = resource.get('name')
-        if resource.get('sport_id') == 'PADEL':  # Nur Padel-Plätze
+    for resource_id, name, sport in resources:
+        if sport == 'PADEL' and resource_id not in seen:  # Nur Padel-Plätze
+            seen.add(resource_id)
             platz_info.append({'resource_id': resource_id, 'name': name})
 
     # Optional: Ausgabe
