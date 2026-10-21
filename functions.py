@@ -4,10 +4,7 @@ import json
 import re
 from datetime import datetime, timedelta
 import pandas as pd
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.image import MIMEImage
+import html
 import os
 from pathlib import Path
 
@@ -16,7 +13,12 @@ url_ubstadt = "https://playtomic.io/gartner-sportpark/e3acb6b7-c7c5-42c0-ae6f-99
 
 script_dir = Path(__file__).parent
 
-logo_dir = script_dir / "logo.jpg"
+TELEGRAM_MAX_MESSAGE_LENGTH = 4096
+
+def load_config():
+    """Lädt die lokale Konfiguration (config.local.json, nicht im Repo; Vorlage: config.json)."""
+    with open(script_dir / "config.local.json", "r") as file:
+        return json.load(file)
 
 def get_tenant_id(url):
     pattern = r"https://playtomic\.io/[^/]+/([0-9a-fA-F-]+)"
@@ -49,32 +51,24 @@ def get_login_playtomic():
         return username, password
     
     else:
-        with open(script_dir/ "config.json", "r") as file:
-            config = json.load(file)
-            username = config["username_playtomic"]
-            password = config["password_playtomic"]
+        config = load_config()
+        username = config["username_playtomic"]
+        password = config["password_playtomic"]
         return username, password
 
-def get_login_mail_sender():
-    """Lädt Login-Daten für Mail-Account aus config-JSON.
+def get_telegram_token():
+    """Lädt das Telegram-Bot-Token aus config-JSON bzw. Umgebungsvariable.
 
     Returns:
-        username (String): Username(Mail) für Mail-Account
-        password (String): Passwort für Mail-Account
+        token (String): Token des Telegram-Bots (von @BotFather)
     """
     mode = os.getenv('MODE', 'local')  # Standardmäßig 'local'
 
     if mode == 'cloud':
-        # Anmeldedaten aus Umgebungsvariablen (für GitHub Actions)
-        username = os.getenv('USERNAME_MAIL_SENDER')
-        password = os.getenv('PASSWORD_MAIL_SENDER')
-        return username, password
+        # Token aus Umgebungsvariable (für GitHub Actions)
+        return os.getenv('TELEGRAM_BOT_TOKEN')
     else:
-        with open(script_dir/ "config.json", "r") as file:
-            config = json.load(file)
-            username = config["username_mail_sender"]
-            password = config["password_mail_sender"]
-        return username, password
+        return load_config()["telegram_bot_token"]
 
 def login():
     """Führt Login bei Playtomic über API durch, zieht sich dann access_token und user_id.
@@ -372,85 +366,54 @@ def book_court():
 def format_dataframe_as_text(df):
     return df.to_string(index=False)
 
-def send_email(df, subject, recipients, location):
-    """_summary_
+def split_telegram_messages(header, table_text, max_length=TELEGRAM_MAX_MESSAGE_LENGTH):
+    """Teilt Header + Tabelle in Nachrichten, die das Telegram-Limit nicht überschreiten."""
+    lines = table_text.splitlines()
+    # Platz für Header, <pre>-Tags und Zeilenumbrüche reservieren
+    budget = max_length - len(html.escape(header)) - len("\n<pre></pre>") - 1
+    messages, chunk = [], ""
+    for line in lines:
+        escaped = html.escape(line)
+        if chunk and len(chunk) + len(escaped) + 1 > budget:
+            messages.append(f"{html.escape(header)}\n<pre>{chunk}</pre>")
+            chunk = ""
+        chunk = f"{chunk}\n{escaped}" if chunk else escaped
+    if chunk:
+        messages.append(f"{html.escape(header)}\n<pre>{chunk}</pre>")
+    return messages
+
+def send_telegram(df, subject, chat_ids, location):
+    """Sendet die gefundenen freien Plätze per Telegram-Bot an alle Chat-IDs.
 
     Args:
-        df (_type_): _description_
-        subject (_type_): _description_
-        recipient (_type_): _description_
-        location (_type_): _description_
-    """    
-
-    sender, password = get_login_mail_sender()
-    # Erstelle die E-Mail
-    html = df.to_html(index=False)
-    #body=f"Die folgenden freien Zeiten wurden in {location} gefunden:\n\n{format_dataframe_as_text(df)}"
-    msg = MIMEMultipart()
-    msg["From"] = sender
-    msg["To"] = sender
-    msg["Subject"] = subject
-    msg["Bcc"] = ", ".join(recipients)  # Empfänger als kommagetrennte Liste
+        df (DataFrame): Gefundene freie Plätze.
+        subject (str): Überschrift der Nachricht.
+        chat_ids (list[str]): Telegram-Chat-IDs der Empfänger.
+        location (str): Standort (z.B. "Mannheim").
+    """
+    token = get_telegram_token()
+    df = df.copy()
     df["Datum"] = pd.to_datetime(df["Datum"]).dt.date
 
-    html_body = f"""
-    <div style="text-align: center; margin-bottom: 20px;">
-        <img src="cid:logo" alt="PadelBot Logo" style="width: 600px; height: auto;">
-    </div>
-    <h2 style="text-align: center;">Die folgenden freien Zeiten wurden in {location} gefunden:</h2>
-    <div style="display: flex; justify-content: center; margin: 20px;">
-        <table style="
-            border-collapse: collapse; 
-            margin: 20px auto; 
-            font-size: 16px; 
-            font-family: Arial, sans-serif;
-            color: #333;
-            text-align: center;
-        ">
-            <thead style="background-color: #007BFF; color: white;">
-                <tr>
-                    <th style="padding: 10px; border: 1px solid #ddd;">Court</th>
-                    <th style="padding: 10px; border: 1px solid #ddd;">Datum</th>
-                    <th style="padding: 10px; border: 1px solid #ddd;">Uhrzeit</th>
-                    <th style="padding: 10px; border: 1px solid #ddd;">Spieldauer</th>
-                    <th style="padding: 10px; border: 1px solid #ddd;">Preis</th>
-                    <th style="padding: 10px; border: 1px solid #ddd;">Tag</th>
-                </tr>
-            </thead>
-            <tbody>
-    """
-    for _, row in df.iterrows():
-        html_body += f"""
-                <tr>
-                    <td style="padding: 10px; border: 1px solid #ddd;">{row['Court']}</td>
-                    <td style="padding: 10px; border: 1px solid #ddd;">{row['Datum']}</td>
-                    <td style="padding: 10px; border: 1px solid #ddd;">{row['Uhrzeit']}</td>
-                    <td style="padding: 10px; border: 1px solid #ddd;">{row['Spieldauer']}</td>
-                    <td style="padding: 10px; border: 1px solid #ddd;">{row['Preis']}</td>
-                    <td style="padding: 10px; border: 1px solid #ddd;">{row['Tag']}</td>
-                </tr>
-        """
-    html_body += """
-            </tbody>
-        </table>
-    </div>
-    """
-    msg.attach(MIMEText(html_body, "html"))
-    
-    # Bild anhängen
-    with open(logo_dir, "rb") as img:
-        mime_img = MIMEImage(img.read())
-        mime_img.add_header("Content-ID", "<logo>")
-        msg.attach(mime_img)
+    header = f"{subject}\nDie folgenden freien Zeiten wurden in {location} gefunden:"
+    messages = split_telegram_messages(header, format_dataframe_as_text(df))
+    api_url = f"https://api.telegram.org/bot{token}/sendMessage"
 
-    try:
-        # SMTP-Server und Port für web.de
-        with smtplib.SMTP_SSL("smtp.web.de", 465) as server:
-            server.login(sender, password)
-            server.sendmail(sender, recipients, msg.as_string())
-            print("E-Mail erfolgreich gesendet!")
-    except Exception as e:
-        print(f"Fehler beim Senden der E-Mail: {e}")
+    for chat_id in chat_ids:
+        for text in messages:
+            try:
+                response = requests.post(
+                    api_url,
+                    json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"},
+                    timeout=10,
+                )
+                response.raise_for_status()
+            except requests.RequestException as e:
+                # Fehlermeldung ohne URL ausgeben, da diese das Bot-Token enthält
+                print(f"Fehler beim Senden der Telegram-Nachricht an {chat_id}: {type(e).__name__}")
+                break
+        else:
+            print(f"Telegram-Nachricht an {chat_id} erfolgreich gesendet!")
 
 def find_new_slots(new_df, storage_file_path):
     """ Vergleicht die gefundenen freien Plätze des letzten Runs mit den gefundenen Plätze des aktuellen Runs. Es werden nur freie Plätze (Zeilen im DF)

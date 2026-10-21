@@ -30,8 +30,9 @@ jobs:
           MODE: cloud
           PLAYTOMIC_USERNAME: ${{ secrets.PLAYTOMIC_USERNAME }}
           PLAYTOMIC_PASSWORD: ${{ secrets.PLAYTOMIC_PASSWORD }}
-          USERNAME_MAIL_SENDER: ${{ secrets.USERNAME_MAIL_SENDER }}
-          PASSWORD_MAIL_SENDER: ${{ secrets.PASSWORD_MAIL_SENDER }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_IDS_MANNHEIM: ${{ secrets.CHAT_IDS_MANNHEIM }}
+          CHAT_IDS_UBSTADT: ${{ secrets.CHAT_IDS_UBSTADT }}
         run: python main.py
 
       # Pushe aktualisierte Slots ins Repo  

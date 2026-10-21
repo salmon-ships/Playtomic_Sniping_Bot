@@ -1,5 +1,5 @@
 import pandas as pd
-from functions import search_for_free_padel_slots, send_email, find_new_slots, get_tenant_id
+from functions import search_for_free_padel_slots, send_telegram, find_new_slots, get_tenant_id, load_config
 import os
 from pathlib import Path
 import json
@@ -7,15 +7,14 @@ import json
 script_dir = Path(__file__).parent
 # Prüfen, ob wir in GitHub Actions oder lokal laufen
 if os.getenv("GITHUB_ACTIONS"):
-     # Anmeldedaten aus Umgebungsvariablen (für GitHub Actions)
-    recipients_mannheim = os.getenv('RECIPIENTS_MANNHEIM')
-    recipients_ubstadt = os.getenv('RECIPIENTS_UBSTADT')
+    # Komma-getrennte Chat-IDs aus Umgebungsvariablen (für GitHub Actions)
+    chat_ids_mannheim = [c.strip() for c in os.getenv('CHAT_IDS_MANNHEIM', '').split(',') if c.strip()]
+    chat_ids_ubstadt = [c.strip() for c in os.getenv('CHAT_IDS_UBSTADT', '').split(',') if c.strip()]
 else:
     # Lokaler Pfad
-    with open(script_dir/ "config.json", "r") as file:
-        config = json.load(file)
-        recipients_mannheim = config["recipients_mannheim"]
-        recipients_ubstadt = config["recipients_ubstadt"]
+    config = load_config()
+    chat_ids_mannheim = config["chat_ids_mannheim"]
+    chat_ids_ubstadt = config["chat_ids_ubstadt"]
 
 storage_file_path_mannheim = script_dir / "freie_plaetze_mannheim.csv"
 storage_file_path_ubstadt = script_dir / "freie_plaetze_ubstadt.csv"
@@ -68,15 +67,15 @@ if __name__ == "__main__":
     if not diff_df_mannheim.empty:
         print("Die folgenden neuen Slots in Mannheim entsprechen den Filterkriterien:")
         print(diff_df_mannheim.to_string(index=False))
-        send_email(
+        send_telegram(
             diff_df_mannheim,
             subject="Padel-Tennisplatz in Mannheim gefunden!",
-            recipients=recipients_mannheim,
+            chat_ids=chat_ids_mannheim,
             location="Mannheim"
         )
     else:
         print(
-            "Es wurden keine neuen in Mannheim Slots gefunden, die den Filterkriterien entsprechen. Keine E-Mail gesendet."
+            "Es wurden keine neuen in Mannheim Slots gefunden, die den Filterkriterien entsprechen. Keine Telegram-Nachricht gesendet."
         )
 
     # # Suche nach neuen Plätzen in Ubstadt
@@ -103,13 +102,13 @@ if __name__ == "__main__":
     if not diff_df.empty:
         print("Die folgenden neuen Slots in Ubstadt entsprechen den Filterkriterien:")
         print(diff_df.to_string(index=False))
-        send_email(
+        send_telegram(
             diff_df,
             subject="Padel-Tennisplatz in Ubstadt gefunden!",
-            recipients=recipients_ubstadt,
+            chat_ids=chat_ids_ubstadt,
             location="Ubstadt"
         )
     else:
         print(
-            "Es wurden keine neuen Slots in Ubstadt gefunden, die den Filterkriterien entsprechen. Keine E-Mail gesendet."
+            "Es wurden keine neuen Slots in Ubstadt gefunden, die den Filterkriterien entsprechen. Keine Telegram-Nachricht gesendet."
         )

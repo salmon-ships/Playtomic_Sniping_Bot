@@ -1,8 +1,7 @@
 {
-    "username_playtomic": "",
+    "username_playtomic": "your-playtomic-email@example.com",
     "password_playtomic": "",
-    "username_mail_sender":"",
-    "password_mail_sender":"",
-    "recipients_mannheim":[""],
-    "recipients_ubstadt":[""]
+    "telegram_bot_token": "",
+    "chat_ids_mannheim": [],
+    "chat_ids_ubstadt": []
 }
