@@ -69,6 +69,9 @@ def handle_command(command, args, chat_id, subscriptions, cities):
     """Verarbeitet einen Befehl und gibt die Antwort zurück (None = keine Antwort)."""
     subscribed = subscriptions.get(chat_id, [])
 
+    if command in ("/subscribe", "/unsubscribe") and not args:
+        return f"Bitte Stadt angeben, z. B. {command} {next(iter(cities))}\n\n{status_text(cities, subscribed)}"
+
     if command in ("/subscribe", "/unsubscribe") and args:
         wanted = list(cities) if "all" in args else args
         unknown = [a for a in wanted if a not in cities]
